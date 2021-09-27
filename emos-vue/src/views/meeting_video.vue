@@ -88,6 +88,17 @@ export default {
 		};
 	},
 	methods: {
+		//用于判断当前本地使用的是本地流还是共享流，并返回相应的流对象
+		getStream: function() {
+		    let that = this;
+		    let stream = null;
+		    if (that.localStream != null) {
+		        stream = that.localStream;
+		    } else if (that.shareStream != null) {
+		        stream = that.shareStream;
+		    }
+		    return stream;
+		},
 		phoneHandle: function() {
 		    let that = this;
 		    //检查浏览器是否支持在线视频会议
@@ -133,7 +144,20 @@ export default {
 		                    //把远端流保存到模型层JSON中，将来大屏显示的时候要找到某个远端流停止小窗口播放，切换到大窗口播放
 		                    that.stream[userId] = remoteStream;
 		                });
-		
+						
+						//订阅语音事件（无论本地还是远端说话，都会触发这个事件）
+						client.on('audio-volume', event => {
+						    event.result.forEach(({ userId, audioVolume, stream }) => {
+						        //说话声音超过5，就设置话筒音量动画
+						        if (audioVolume > 5) {
+						            $('#mic-' + userId).css('top', `${100 - audioVolume * 3}%`);
+						        } else {
+						            $('#mic-' + userId).css('top', `100%`);
+						        }
+						    });
+						});
+						// 开启音量回调函数，并设置每 30ms 触发一次事件
+						client.enableAudioVolumeEvaluation(30);
 		                //远端流订阅成功事件
 		                client.on('stream-subscribed', event => {
 		                    let remoteStream = event.stream;
@@ -143,7 +167,6 @@ export default {
 		                    //在这个置顶的DIV中播放远端音视频讯号
 		                    remoteStream.play(userId + ''); 
 		                });
-		
 		                //订阅远端删除流事件（远端用户退出会议室）
 		                client.on('stream-removed', event => {
 		                    let remoteStream = event.stream;
@@ -190,7 +213,6 @@ export default {
 		                        });
 		                        that.localStream = localStream;
 		                        localStream.setVideoProfile('480p'); //设置分辨率
-		
 		                        //TODO 把自己添加到上线用户列表中
 								//把自己添加到上线用户列表中
 								that.$http('user/searchNameAndDept', 'POST', { id: that.userId }, true, function(resp) {
@@ -226,6 +248,37 @@ export default {
 		                    });
 		            } else {
 		                //TODO 关闭视频会议
+						//获取当前本地使用的流，有可能是本地流或者共享流
+						let stream = that.getStream(); 
+						that.client.unpublish(stream).then(() => {
+						    // 取消发布本地流成功
+						    that.client
+						        .leave()
+						        .then(() => {
+						            console.log('成功退出会议室');
+						            //关闭本地流或者共享流
+						            stream.stop();
+						            stream.close();
+									      //清空模型层的本地流
+						            that.localStream = null;
+						            that.shareStream = null;
+									      //清空模型层的远端流
+						            that.stream = {};
+									      //销毁TrtcClient对象
+						            that.client = null;
+						            that.userList = []; //清空用户列表
+						            that.videoStatus = true;
+						            that.micStatus = true;
+						            that.shareStatus = false;
+									      //视频墙上本地流DIV区域置底
+						            $('#localStream').css({ 'z-index': '-1' });
+						            $('#localStream').html('');
+						            //TODO 如果是播放大屏视频的时候退出会议，退出会议后需要隐藏大屏
+						        })
+						        .catch(error => {
+						            console.error('成功退出会议室失败' + error);
+						        });
+						});
 		            }
 		        }
 		    });

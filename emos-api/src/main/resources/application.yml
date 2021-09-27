@@ -91,7 +91,7 @@ wx:
 emos:
   code: 9B13991D7DB00C09
   tcode: "273458"
-  recieveNotify: http://10.129.42.35:8090/emos-api/meeting/recieveNotify
+  recieveNotify: http://10.129.41.124:8090/emos-api/meeting/recieveNotify
 
 workflow:
-  url: http://10.129.42.35:9090/emos-workflow
+  url: http://10.129.41.124:9090/emos-workflow
